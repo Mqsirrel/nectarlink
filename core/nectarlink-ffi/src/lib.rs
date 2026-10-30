@@ -70,7 +70,7 @@ impl Eq for ScreenShape {}
 pub struct DeviceInfo {
     pub name: String,
     pub kind: DeviceKind,
-    /// "android", "windows" or "macos".
+    /// "android", "ios", "windows", "macos" or "linux".
     pub os: String,
     pub os_version: String,
     pub model: Option<String>,

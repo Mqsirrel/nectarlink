@@ -24,6 +24,7 @@ use serde_json::{Map, Value};
 const TOKENS: &str = "docs/design/tokens.json";
 const QML_OUT: &str = "desktop/app/qml/Tokens.qml";
 const KOTLIN_OUT: &str = "android/app/src/main/kotlin/app/nectarlink/android/ui/theme/Tokens.kt";
+const SWIFT_OUT: &str = "ios/NectarLink/UI/Theme/Tokens.swift";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -59,7 +60,11 @@ fn tokens(check: bool) -> Result<()> {
     let source = fs::read_to_string(root.join(TOKENS)).with_context(|| format!("reading {TOKENS}"))?;
     let tokens: Value = serde_json::from_str(&source).with_context(|| format!("parsing {TOKENS}"))?;
     validate(&tokens)?;
-    let outputs = [(QML_OUT, render_qml(&tokens)?), (KOTLIN_OUT, render_kotlin(&tokens)?)];
+    let outputs = [
+        (QML_OUT, render_qml(&tokens)?),
+        (KOTLIN_OUT, render_kotlin(&tokens)?),
+        (SWIFT_OUT, render_swift(&tokens)?),
+    ];
 
     let mut stale = Vec::new();
     for (path, content) in outputs {
@@ -364,6 +369,126 @@ fn render_kotlin(tokens: &Value) -> Result<String> {
     Ok(out.join("\n"))
 }
 
+/// `#RRGGBB` as a Swift hex literal (`Color(hex: 0xRRGGBB)`).
+fn swift_color(hex: &str) -> String {
+    format!("Color(hex: 0x{})", hex.trim_start_matches('#').to_ascii_uppercase())
+}
+
+/// A Swift `Palette(...)` expression, its lines indented by `indent` spaces.
+fn swift_palette(palette: &Value, indent: usize) -> Result<String> {
+    let pad = " ".repeat(indent);
+    let mut lines = vec!["Palette(".to_owned()];
+    for (idx, role) in ROLES.iter().enumerate() {
+        let hex = palette.get(*role).and_then(Value::as_str).with_context(|| format!("missing {role}"))?;
+        let comma = if idx + 1 == ROLES.len() { "" } else { "," };
+        lines.push(format!("{pad}    {role}: {}{comma}", swift_color(hex)));
+    }
+    lines.push(format!("{pad})"));
+    Ok(lines.join("\n"))
+}
+
+fn render_swift(tokens: &Value) -> Result<String> {
+    let bloom = tokens.pointer("/themes/bloom").context("missing bloom")?;
+    let seeds = bloom.get("seeds").and_then(Value::as_object).context("missing seeds")?;
+    let default_seed = bloom.get("defaultSeed").and_then(Value::as_str).context("missing defaultSeed")?;
+    let variants = tokens.pointer("/themes/graphite/variants").context("missing graphite variants")?;
+    let status = bloom.get("status").context("missing bloom status")?;
+    let status_color = |mode: &str, key: &str| -> Result<String> {
+        let hex = status
+            .pointer(&format!("/{mode}/{key}"))
+            .and_then(Value::as_str)
+            .context("missing status color")?;
+        Ok(swift_color(hex))
+    };
+
+    let mut out: Vec<String> = vec![
+        "// SPDX-License-Identifier: MPL-2.0".into(),
+        "// Generated from docs/design/tokens.json by `cargo xtask tokens`. Do not edit.".into(),
+        "import SwiftUI".into(),
+        String::new(),
+        "extension Color {".into(),
+        "    public init(hex: UInt32, opacity: Double = 1.0) {".into(),
+        "        let r = Double((hex >> 16) & 0xFF) / 255.0".into(),
+        "        let g = Double((hex >> 8) & 0xFF) / 255.0".into(),
+        "        let b = Double(hex & 0xFF) / 255.0".into(),
+        "        self.init(.sRGB, red: r, green: g, blue: b, opacity: opacity)".into(),
+        "    }".into(),
+        "}".into(),
+        String::new(),
+        "/// Material color roles of one theme variant.".into(),
+        "public struct Palette: Equatable, Sendable {".into(),
+    ];
+    out.extend(ROLES.iter().map(|r| format!("    public let {r}: Color")));
+    out.extend([
+        "}".into(),
+        String::new(),
+        "/// A Bloom color preset: its seed swatch and light and dark palettes.".into(),
+        "public struct Seed: Equatable, Sendable {".into(),
+        "    public let color: Color".into(),
+        "    public let seedRgb: UInt32".into(),
+        "    public let light: Palette".into(),
+        "    public let dark: Palette".into(),
+        "}".into(),
+        String::new(),
+        "public enum Tokens {".into(),
+        format!("    public static let defaultSeed = \"{default_seed}\""),
+        String::new(),
+        "    public static let bloomSeeds: [String: Seed] = [".into(),
+    ]);
+    for (name, def) in seeds {
+        let seed = def.get("seed").and_then(Value::as_str).context("missing seed color")?;
+        let seed_hex = seed.trim_start_matches('#').to_ascii_uppercase();
+        out.push(format!("        \"{name}\": Seed("));
+        out.push(format!("            color: {},", swift_color(seed)));
+        out.push(format!("            seedRgb: 0xFF{seed_hex},"));
+        out.push(format!("            light: {},", swift_palette(&def["light"], 12)?));
+        out.push(format!("            dark: {}", swift_palette(&def["dark"], 12)?));
+        out.push("        ),".into());
+    }
+    out.push("    ]".into());
+    out.push(String::new());
+    out.push(format!("    public static let graphitePaper = {}", swift_palette(&variants["paper"], 4)?));
+    out.push(String::new());
+    out.push(format!("    public static let graphiteSlate = {}", swift_palette(&variants["slate"], 4)?));
+    out.push(String::new());
+    let hive = tokens.pointer("/themes/hive/variants").context("missing hive variants")?;
+    out.push(format!("    public static let hiveWax = {}", swift_palette(&hive["wax"], 4)?));
+    out.push(String::new());
+    out.push(format!("    public static let hiveComb = {}", swift_palette(&hive["comb"], 4)?));
+    out.push(String::new());
+    for (name, mode) in [("Wax", "wax"), ("Comb", "comb")] {
+        for key in ["warning", "error"] {
+            let hex = hive
+                .pointer(&format!("/{mode}/{key}"))
+                .and_then(Value::as_str)
+                .context("missing hive status")?;
+            let field = format!("hive{name}{}", if key == "warning" { "Warning" } else { "Error" });
+            out.push(format!("    public static let {field} = {}", swift_color(hex)));
+        }
+    }
+    let comb = tokens.pointer("/themes/hive/comb").context("missing hive comb")?;
+    let number =
+        |key: &str| comb.get(key).and_then(Value::as_f64).with_context(|| format!("missing comb.{key}"));
+    out.push(String::new());
+    out.push("    /// The honeycomb backdrop (themes.hive.comb).".into());
+    out.push(format!("    public static let combCellPt: CGFloat = {}", number("cell")?));
+    out.push(format!("    public static let combLineAlphaDark: Double = {}", number("lineAlphaDark")?));
+    out.push(format!("    public static let combLineAlphaLight: Double = {}", number("lineAlphaLight")?));
+    out.push(format!("    public static let combGlowAlphaDark: Double = {}", number("glowAlphaDark")?));
+    out.push(format!("    public static let combGlowAlphaLight: Double = {}", number("glowAlphaLight")?));
+    out.push(format!("    public static let combBreathSeconds: Double = {}", number("breathSeconds")?));
+    out.push(format!("    public static let combPulseSeconds: Double = {}", number("pulseSeconds")?));
+    out.push(format!("    public static let combFrameMs: Int = {}", number("frameMs")? as i64));
+    out.push(String::new());
+    out.push(format!("    public static let warningLight = {}", status_color("light", "warning")?));
+    out.push(format!("    public static let warningDark = {}", status_color("dark", "warning")?));
+    out.push(format!("    public static let errorLight = {}", status_color("light", "error")?));
+    out.push(format!("    public static let errorDark = {}", status_color("dark", "error")?));
+    out.push("}".into());
+    out.push(String::new());
+    Ok(out.join("\n"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,6 +521,17 @@ mod tests {
             assert!(kotlin.contains(&format!("\"{seed}\" to Seed(")), "{seed}");
         }
         assert!(kotlin.contains("primary = Color(0xFF8A5100)"));
+    }
+
+    #[test]
+    fn swift_theme_has_every_seed() {
+        let source = fs::read_to_string(repo_root().join(TOKENS)).unwrap();
+        let tokens: Value = serde_json::from_str(&source).unwrap();
+        let swift = render_swift(&tokens).unwrap();
+        for seed in tokens.pointer("/themes/bloom/seeds").unwrap().as_object().unwrap().keys() {
+            assert!(swift.contains(&format!("\"{seed}\": Seed(")), "{seed}");
+        }
+        assert!(swift.contains("primary: Color(hex: 0x8A5100)"));
     }
 
     #[test]

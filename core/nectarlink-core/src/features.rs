@@ -284,7 +284,7 @@ impl DeviceFacts {
     /// Creates baseline [`DeviceFacts`] for a desktop or phone OS.
     pub fn for_os(os: &str) -> Self {
         let (kind, power) = match os {
-            "android" => (DeviceKind::Phone, PowerLevel::Basic),
+            "android" | "ios" => (DeviceKind::Phone, PowerLevel::Basic),
             _ => (DeviceKind::Desktop, PowerLevel::NotApplicable),
         };
         DeviceFacts { kind, os: os.to_owned(), os_ver: String::new(), caps: BTreeSet::new(), power }
@@ -316,7 +316,7 @@ fn role_from(kind: DeviceKind, os: &str) -> Option<Role> {
         DeviceKind::Phone | DeviceKind::Tablet => Some(Role::Phone),
         DeviceKind::Desktop | DeviceKind::Laptop => Some(Role::Desktop),
         DeviceKind::Unknown => match os {
-            "android" => Some(Role::Phone),
+            "android" | "ios" => Some(Role::Phone),
             "windows" | "macos" | "linux" => Some(Role::Desktop),
             _ => None,
         },
@@ -400,7 +400,8 @@ pub fn compute(device: DeviceId, inputs: MatrixInputs<'_>) -> CapabilityMatrix {
         (Some(Role::Desktop), Some(Role::Phone)) => Some((peer, local)),
         _ => None,
     };
-    let android_pair = local.os == "android" && peer.os == "android";
+    let mobile_pair = matches!(local.os.as_str(), "android" | "ios")
+        && matches!(peer.os.as_str(), "android" | "ios");
     let run = |list: &'static [FeatureDef], applies: Option<(&DeviceFacts, &DeviceFacts)>| {
         list.iter()
             .map(|def| {
@@ -422,10 +423,10 @@ pub fn compute(device: DeviceId, inputs: MatrixInputs<'_>) -> CapabilityMatrix {
             })
             .collect::<Vec<_>>()
     };
-    // In a pair of Android devices, "phone" requirements are about the
-    // other device (and its Android version).
+    // In a pair of mobile devices, "phone" requirements are about the
+    // other device (and its OS version).
     let mut features = run(FEATURES, pc_pair);
-    features.extend(run(ANDROID_PAIR_FEATURES, android_pair.then_some((peer, local))));
+    features.extend(run(ANDROID_PAIR_FEATURES, mobile_pair.then_some((peer, local))));
     let features = features.into_iter().collect();
     CapabilityMatrix { device, features }
 }
@@ -455,6 +456,16 @@ fn power_rank(level: PowerLevel) -> u8 {
     }
 }
 
+fn is_ios_impossible_permission(p: Permission) -> bool {
+    matches!(
+        p,
+        Permission::NotificationAccess
+            | Permission::DoNotDisturb
+            | Permission::WriteSettings
+            | Permission::Sms
+    )
+}
+
 fn check(req: &Requirement, ctx: &Context<'_>) -> Check {
     match *req {
         Requirement::Cap { role, id, unlock } => {
@@ -466,10 +477,16 @@ fn check(req: &Requirement, ctx: &Context<'_>) -> Check {
                 return Check::Met;
             }
             match unlock {
-                Unlock::Power(level) if power_rank(ctx.phone.power) < power_rank(level) => {
+                Unlock::Power(level)
+                    if ctx.phone.os != "ios"
+                        && power_rank(ctx.phone.power) < power_rank(level) =>
+                {
                     Check::Unlockable(Upgrade::new(UpgradeAction::RaisePower(level)))
                 }
                 Unlock::Power(_) => Check::Impossible(UnsupportedReason::NotOnThisDevice),
+                Unlock::Permission(p) if ctx.phone.os == "ios" && is_ios_impossible_permission(p) => {
+                    Check::Impossible(UnsupportedReason::NotOnThisDevice)
+                }
                 Unlock::Permission(p) => Check::Unlockable(Upgrade::new(UpgradeAction::GrantPermission(p))),
                 Unlock::Addon(addon) => Check::Unlockable(Upgrade::new(UpgradeAction::EnableAddon(addon))),
                 Unlock::UpdateApp => Check::Unlockable(Upgrade::new(UpgradeAction::UpdateApp(role))),
@@ -482,6 +499,9 @@ fn check(req: &Requirement, ctx: &Context<'_>) -> Check {
             }
             let role = facts.role().unwrap_or(Role::Phone);
             match unlock {
+                Unlock::Permission(p) if facts.os == "ios" && is_ios_impossible_permission(p) => {
+                    Check::Impossible(UnsupportedReason::NotOnThisDevice)
+                }
                 Unlock::Permission(p) => Check::Unlockable(Upgrade::new(UpgradeAction::GrantPermission(p))),
                 Unlock::Addon(addon) => Check::Unlockable(Upgrade::new(UpgradeAction::EnableAddon(addon))),
                 Unlock::Power(_) | Unlock::UpdateApp => {
@@ -492,6 +512,8 @@ fn check(req: &Requirement, ctx: &Context<'_>) -> Check {
         Requirement::PowerAtLeast(level) => {
             if power_rank(ctx.phone.power) >= power_rank(level) {
                 Check::Met
+            } else if ctx.phone.os == "ios" {
+                Check::Impossible(UnsupportedReason::NotOnThisDevice)
             } else {
                 Check::Unlockable(Upgrade::new(UpgradeAction::RaisePower(level)))
             }
@@ -1540,5 +1562,122 @@ mod tests {
             m.state("camera.webcam"),
             Some(locked(UpgradeAction::EnableAddon("vcam"), Effort::Minutes(1)))
         );
+    }
+
+    #[test]
+    fn ios_phone_matrix_reflects_supported_and_unsupported_features() {
+        const IOS_PHONE: &[&str] = &[
+            "device.ring",
+            "device.battery",
+            "link.open",
+            "notify.show",
+            "call.state",
+            "call.dial",
+            "contacts.read",
+            "clip.write",
+            "clip.share",
+            "files.transfer",
+            "photos.read",
+            "storage.read",
+            "storage.write",
+            "mirror.capture",
+            "mirror.audio.playback",
+            "media.remote",
+            "media.watch",
+            "mic.stream",
+            "camera.stream",
+            "camera.capture",
+            "toggles.read",
+            "toggles.volume",
+            "toggles.flashlight",
+            "toggles.brightness",
+        ];
+
+        let mut ios = DeviceFacts::for_os("ios");
+        assert_eq!(ios.kind, DeviceKind::Phone);
+        assert_eq!(ios.power, PowerLevel::Basic);
+        assert_eq!(ios.role(), Some(Role::Phone));
+        ios.os_ver = "18.0".into();
+        ios.caps = IOS_PHONE.iter().map(|c| (*c).to_owned()).collect();
+
+        let m = matrix(&ios);
+
+        // Supported iOS features:
+        for id in [
+            "device.find_phone",
+            "device.battery",
+            "device.pc_actions",
+            "device.links_to_phone",
+            "toggles.flashlight",
+            "toggles.volume",
+            "toggles.brightness",
+            "calls.alerts",
+            "calls.dial",
+            "contacts.read",
+            "clipboard.pc_to_phone",
+            "files.send",
+            "files.recent_photos",
+            "files.recordings",
+            "mirroring.view",
+            "media.pc_control",
+            "media.pc_audio",
+            "camera.continuity",
+            "input.remote",
+            "input.deck",
+        ] {
+            assert_eq!(m.state(id), Some(FeatureState::Available), "{id}");
+        }
+
+        // Manual clipboard share works on iOS without nagging for Android Elevated mode:
+        assert_eq!(
+            m.state("clipboard.auto_phone_to_pc"),
+            Some(FeatureState::Partial { limit: "clipboard.limit.manual", upgrade: None })
+        );
+
+        // Android-only sandbox-restricted features are Unsupported (NotOnThisDevice) on iOS:
+        for id in [
+            "messages.sms",
+            "notifications.mirror",
+            "notifications.reply",
+            "notifications.sensitive",
+            "toggles.dnd",
+            "toggles.wifi",
+            "toggles.bluetooth",
+            "mirroring.control",
+            "mirroring.app_windows",
+            "media.phone_control",
+        ] {
+            assert_eq!(
+                m.state(id),
+                Some(FeatureState::Unsupported { reason: UnsupportedReason::NotOnThisDevice }),
+                "{id}"
+            );
+        }
+
+        // Mobile-to-mobile pair between iOS and Android works for shared mobile features:
+        let android_phone = facts(
+            DeviceKind::Phone,
+            "android",
+            "16",
+            PowerLevel::Basic,
+            &[
+                "device.ring",
+                "device.battery",
+                "notify.mirror",
+                "notify.show",
+                "clip.write",
+                "files.transfer",
+                "link.open",
+            ],
+        );
+        let paths = [ConnectionPath::Lan];
+        let toggles = HashMap::new();
+        let on_ios = compute(
+            DeviceId([9; 32]),
+            MatrixInputs { local: &ios, peer: &android_phone, paths: &paths, toggles: &toggles },
+        );
+        for id in ["pair.battery", "pair.ring", "pair.notifications", "pair.clipboard", "pair.files", "pair.links"] {
+            assert_eq!(on_ios.state(id), Some(FeatureState::Available), "{id}");
+        }
     }
 }

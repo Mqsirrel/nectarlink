@@ -10,7 +10,7 @@ license = "MPL-2.0"
 publish = false
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib", "staticlib", "lib"]
 
 [[bin]]
 # Generates the Kotlin bindings: see android/README.md.

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>NectarLink</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.nectarlink.pair</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>nectarlink</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_nectarlink._tcp</string>
+		<string>_nectarlink._udp</string>
+		<string>_iroh._udp</string>
+		<string>_https._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>NectarLink uses your local Wi-Fi network to discover and connect directly to your paired PCs and LocalSend devices with zero cloud intermediaries.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>NectarLink uses the camera to scan pairing QR codes, capture Continuity Camera photos and scanned documents for your PC, and stream live video when you use your iPhone as a PC webcam.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>NectarLink uses the microphone when you record voice notes for your PC or stream your iPhone microphone to your PC.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NectarLink accesses your photos and videos so you can browse recent items on your PC and send selected photos or videos at full quality.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>NectarLink saves photos and videos received from your PC to your photo library when requested.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>NectarLink reads your contacts so your paired PC can show caller names and look up phone numbers.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>NectarLink uses the gyroscope when you control your PC cursor in Air Mouse mode.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>app.nectarlink.ios.sync</string>
+	</array>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+</dict>
+</plist>
