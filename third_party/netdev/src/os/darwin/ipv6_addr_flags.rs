@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 use std::net::Ipv6Addr;
 
 use crate::interface::ipv6_addr_flags::Ipv6AddrFlags;
