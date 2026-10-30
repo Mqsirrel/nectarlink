@@ -99,3 +99,6 @@ strip = "symbols"
 [profile.android]
 inherits = "release"
 strip = "debuginfo"
+
+[patch.crates-io]
+netdev = { path = "third_party/netdev" }
