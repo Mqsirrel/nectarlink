@@ -4,6 +4,77 @@ import CoreMedia
 import Foundation
 import UIKit
 
+public struct WebcamControlPayload: Codable, Equatable, Sendable {
+    public var camera: String?
+    public var torch: Bool?
+    public var zoomRatio: Float?
+    public var maxHeight: UInt32?
+    public var fps: UInt32?
+    public var bitrateKbps: UInt32?
+    public var focusPoint: String?
+    public var focusX: Float?
+    public var focusY: Float?
+
+    public init(
+        camera: String? = nil,
+        torch: Bool? = nil,
+        zoomRatio: Float? = nil,
+        maxHeight: UInt32? = nil,
+        fps: UInt32? = nil,
+        bitrateKbps: UInt32? = nil,
+        focusPoint: String? = nil,
+        focusX: Float? = nil,
+        focusY: Float? = nil
+    ) {
+        self.camera = camera
+        self.torch = torch
+        self.zoomRatio = zoomRatio
+        self.maxHeight = maxHeight
+        self.fps = fps
+        self.bitrateKbps = bitrateKbps
+        self.focusPoint = focusPoint
+        self.focusX = focusX
+        self.focusY = focusY
+    }
+}
+
+public struct WebcamStatePayload: Codable, Equatable, Sendable {
+    public var streaming: Bool
+    public var camera: String
+    public var torch: Bool
+    public var hasTorch: Bool
+    public var zoomRatio: Float
+    public var maxZoomRatio: Float
+    public var width: UInt32
+    public var height: UInt32
+    public var fps: UInt32
+    public var maxHeight: UInt32
+
+    public init(
+        streaming: Bool,
+        camera: String,
+        torch: Bool,
+        hasTorch: Bool,
+        zoomRatio: Float,
+        maxZoomRatio: Float,
+        width: UInt32,
+        height: UInt32,
+        fps: UInt32,
+        maxHeight: UInt32
+    ) {
+        self.streaming = streaming
+        self.camera = camera
+        self.torch = torch
+        self.hasTorch = hasTorch
+        self.zoomRatio = zoomRatio
+        self.maxZoomRatio = maxZoomRatio
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.maxHeight = maxHeight
+    }
+}
+
 /// Streams the iPhone front or back camera to a paired PC over `node.webcamOpen(pcId:)`.
 final class WebcamStreamer: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     static let shared = WebcamStreamer()
@@ -52,6 +123,7 @@ final class WebcamStreamer: NSObject, ObservableObject, AVCaptureVideoDataOutput
         await AVCaptureDevice.requestAccess(for: .video)
     }
 
+    @discardableResult
     func start(
         pcId: String,
         camera: String = "back",
@@ -68,23 +140,24 @@ final class WebcamStreamer: NSObject, ObservableObject, AVCaptureVideoDataOutput
         }
         lock.unlock()
 
-        guard let stream = try? node.webcamOpen(pcId: pcId) else {
-            return false
-        }
-
         let normalizedCamera = (camera.lowercased() == "front") ? "front" : "back"
         let clampedHeight: UInt32 = maxHeight >= 2160 ? 2160 : (maxHeight <= 720 ? 720 : 1080)
         let clampedFps: UInt32 = fps >= 60 ? 60 : 30
 
-        sessionQueue.async { [weak self] in
-            self?.configureAndStartSession(
-                pcId: pcId,
-                stream: stream,
-                camera: normalizedCamera,
-                maxHeight: clampedHeight,
-                fps: clampedFps,
-                preferHevc: preferHevc
-            )
+        Task {
+            guard let stream = try? await node.webcamOpen(pcId: pcId) else {
+                return
+            }
+            sessionQueue.async { [weak self] in
+                self?.configureAndStartSession(
+                    pcId: pcId,
+                    stream: stream,
+                    camera: normalizedCamera,
+                    maxHeight: clampedHeight,
+                    fps: clampedFps,
+                    preferHevc: preferHevc
+                )
+            }
         }
         return true
     }

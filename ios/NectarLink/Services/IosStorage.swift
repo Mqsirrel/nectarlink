@@ -8,6 +8,11 @@ import Foundation
 /// `storage.rename`, `storage.delete`).
 public final class IosStorage: @unchecked Sendable {
     public static let shared = IosStorage()
+    public static let appGroupIdentifier: String = "group.app.nectarlink.shared"
+
+    public var rootDirectory: URL {
+        rootDirectoryURL()
+    }
 
     private let fm = FileManager.default
     private let bookmarkKey = "app.nectarlink.ios.storageBookmarks"
@@ -205,4 +210,11 @@ public final class IosStorage: @unchecked Sendable {
             throw StorageFailure.Failed(reason: error.localizedDescription)
         }
     }
+
+    public func storageList(path: String) throws -> [StorageEntry] { try list(path: path) }
+    public func storageOpenRead(path: String) throws -> StorageReadFile { try openRead(path: path) }
+    public func storageWrite(path: String, stagedPath: String, modified: Int64?) throws -> StorageWriteDone { try write(path: path, stagedPath: stagedPath, modified: modified) }
+    public func storageMkdir(path: String) throws { try mkdir(path: path) }
+    public func storageRename(from: String, to: String) throws { try rename(from: from, to: to) }
+    public func storageDelete(path: String, confirmed: Bool) throws { try delete(path: path, confirmed: confirmed) }
 }

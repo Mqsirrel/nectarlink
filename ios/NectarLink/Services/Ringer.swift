@@ -13,6 +13,8 @@ public final class Ringer: @unchecked Sendable {
     public static let stopNotificationActionId = "app.nectarlink.ios.action.STOP_RINGING"
     public static let notificationCategoryId = "app.nectarlink.ios.category.RINGING"
 
+    public var onStopped: (() -> Void)?
+
     private let lock = NSLock()
     private var player: AVAudioPlayer?
     private var vibrationTimer: DispatchSourceTimer?
@@ -82,6 +84,7 @@ public final class Ringer: @unchecked Sendable {
             currentPlayer?.stop()
             try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["nectarlink-ringing"])
+            self.onStopped?()
         }
     }
 

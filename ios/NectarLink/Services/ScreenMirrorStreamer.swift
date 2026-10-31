@@ -29,6 +29,7 @@ final class ScreenMirrorStreamer: ObservableObject {
         lock.unlock()
     }
 
+    @discardableResult
     func start(
         pcId: String,
         maxHeight: UInt32 = 1280,
@@ -46,79 +47,86 @@ final class ScreenMirrorStreamer: ObservableObject {
         }
         lock.unlock()
 
-        guard let vStream = try? node.mirrorOpen(pcId: pcId) else {
-            return false
-        }
-        let aStream: MirrorStream? = audio ? (try? node.mirrorOpenAudio(pcId: pcId)) : nil
-
-        let screenBounds = UIScreen.main.nativeBounds
-        let rawW = max(320.0, Double(screenBounds.width))
-        let rawH = max(320.0, Double(screenBounds.height))
-        let targetMaxH = Double(max(480, min(maxHeight, 2160)))
-        let scale = min(1.0, targetMaxH / max(rawW, rawH))
-        let encW = Int32((rawW * scale).rounded()) & ~1
-        let encH = Int32((rawH * scale).rounded()) & ~1
-
-        guard let newEncoder = VideoToolboxEncoder(
-            width: encW,
-            height: encH,
-            fps: Int32(max(15, min(fps, 60))),
-            bitrateBps: 5_500_000,
-            preferHevc: preferHevc,
-            onPacket: { [weak self] kind, ptsUs, annexB in
-                self?.handleVideoPacket(kind: kind, ptsUs: ptsUs, data: annexB)
+        Task {
+            guard let vStream = try? await node.mirrorOpen(pcId: pcId) else {
+                return
             }
-        ) else {
-            vStream.end()
-            aStream?.end()
-            return false
-        }
-
-        lock.lock()
-        let oldEncoder = encoder
-        let oldV = videoStream
-        let oldA = audioStream
-        encoder = newEncoder
-        videoStream = vStream
-        audioStream = aStream
-        sentVideoHeader = false
-        sentAudioHeader = false
-        sessionCounter &+= 1
-        lock.unlock()
-
-        oldEncoder?.stop()
-        oldV?.end()
-        oldA?.end()
-
-        DispatchQueue.main.async {
-            if recorder.isRecording {
-                recorder.stopCapture(handler: nil)
+            let aStream: MirrorStream?
+            if audio {
+                aStream = try? await node.mirrorOpenAudio(pcId: pcId)
+            } else {
+                aStream = nil
             }
-            recorder.isMicrophoneEnabled = false
-            recorder.startCapture(handler: { [weak self] sampleBuffer, bufferType, error in
-                guard error == nil, let self else { return }
-                switch bufferType {
-                case .video:
-                    self.lock.lock()
-                    let enc = self.encoder
-                    self.lock.unlock()
-                    enc?.encode(sampleBuffer: sampleBuffer)
-                case .audioApp:
-                    self.handleAudioSample(sampleBuffer)
-                default:
-                    break
+
+            let screenBounds = await UIScreen.main.nativeBounds
+            let rawW = max(320.0, Double(screenBounds.width))
+            let rawH = max(320.0, Double(screenBounds.height))
+            let targetMaxH = Double(max(480, min(maxHeight, 2160)))
+            let scale = min(1.0, targetMaxH / max(rawW, rawH))
+            let encW = Int32((rawW * scale).rounded()) & ~1
+            let encH = Int32((rawH * scale).rounded()) & ~1
+
+            guard let newEncoder = VideoToolboxEncoder(
+                width: encW,
+                height: encH,
+                fps: Int32(max(15, min(fps, 60))),
+                bitrateBps: 5_500_000,
+                preferHevc: preferHevc,
+                onPacket: { [weak self] kind, ptsUs, annexB in
+                    self?.handleVideoPacket(kind: kind, ptsUs: ptsUs, data: annexB)
                 }
-            }, completionHandler: { [weak self] error in
-                guard let self else { return }
-                if error != nil {
-                    self.stop(pcId: pcId)
-                } else {
-                    DispatchQueue.main.async {
-                        self.isMirroring = true
-                        self.activePcId = pcId
+            ) else {
+                vStream.end()
+                aStream?.end()
+                return
+            }
+
+            self.lock.lock()
+            let oldEncoder = self.encoder
+            let oldV = self.videoStream
+            let oldA = self.audioStream
+            self.encoder = newEncoder
+            self.videoStream = vStream
+            self.audioStream = aStream
+            self.sentVideoHeader = false
+            self.sentAudioHeader = false
+            self.sessionCounter &+= 1
+            self.lock.unlock()
+
+            oldEncoder?.stop()
+            oldV?.end()
+            oldA?.end()
+
+            await MainActor.run {
+                if recorder.isRecording {
+                    recorder.stopCapture(handler: nil)
+                }
+                recorder.isMicrophoneEnabled = false
+                recorder.startCapture(handler: { [weak self] sampleBuffer, bufferType, error in
+                    guard error == nil, let self else { return }
+                    switch bufferType {
+                    case .video:
+                        self.lock.lock()
+                        let enc = self.encoder
+                        self.lock.unlock()
+                        enc?.encode(sampleBuffer: sampleBuffer)
+                    case .audioApp:
+                        self.handleAudioSample(sampleBuffer)
+                    default:
+                        break
                     }
-                }
-            })
+                }, completionHandler: { [weak self] error in
+                    guard let self else { return }
+                    if error != nil {
+                        self.stop(pcId: pcId)
+                    } else {
+                        DispatchQueue.main.async {
+                            self.isMirroring = true
+                            self.activePcId = pcId
+                        }
+                    }
+                })
+            }
         }
 
         return true

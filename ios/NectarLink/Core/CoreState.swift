@@ -2,9 +2,17 @@
 
 import Foundation
 
+public struct PairingPeerInfo: Equatable, Sendable {
+    public let id: String
+    public var name: String { id }
+}
+
 public struct PairingPrompt: Equatable, Sendable {
     public let peerId: String
     public let code: String
+
+    public var peerName: String { peerId }
+    public var peer: PairingPeerInfo { PairingPeerInfo(id: peerId) }
 }
 
 public struct PcMirrorStreamConfig: Equatable, Sendable {
@@ -36,6 +44,8 @@ public struct WatchOfferPrompt: Equatable, Identifiable, Sendable {
     public let file: WatchFileOffer?
 }
 
+public typealias WatchOfferState = WatchOfferPrompt
+
 /// Snapshot of everything the iOS UI renders from the Rust `NectarlinkNode`.
 public struct CoreState: Equatable, Sendable {
     public var ready: Bool = false
@@ -51,6 +61,7 @@ public struct CoreState: Equatable, Sendable {
     public var pairingCode: PairingPrompt? = nil
     public var pairingQrLink: String? = nil
     public var pairingError: PairingFailure? = nil
+    public var pairingBusy: Bool = false
     public var ringing: Bool = false
     public var awayMode: Bool = true
     public var clipboardHistory: [ClipboardHistoryEntry] = []
@@ -62,12 +73,18 @@ public struct CoreState: Equatable, Sendable {
     public var timelineTotal: UInt32 = 0
     public var timelineHasMore: Bool = false
     public var timelineRetentionDays: UInt32 = 30
+    public var timelineRetention: TimelineRetention? = nil
     public var dataRetentionCounts: DataRetentionCounts? = nil
     public var localSendEnabled: Bool = false
     public var localSendReceiving: Bool = false
     public var localSendPeers: [LocalSendPeer] = []
     public var pcMirrorConfigs: [String: PcMirrorStreamConfig] = [:]
     public var pcAudioListeningDevice: String? = nil
+    public var pcSpeakerPeers: Set<String> = []
+    public var mediaArt: [String: Data] = [:]
+    public var recentPhotos: [Photo] = []
+    public var recentPhotoThumbs: [String: Data] = [:]
+    public var deviceToggles: [String: [String: Bool]] = [:]
     public var storagePromptPeerId: String? = nil
     public var queueDroppedBanner: QueueDroppedBanner? = nil
     public var activeCameraCapture: CameraCapturePrompt? = nil
@@ -75,6 +92,35 @@ public struct CoreState: Equatable, Sendable {
     public var webcamStreamingPcId: String? = nil
     public var screenMirroringPcId: String? = nil
     public var micStreamingPcId: String? = nil
+
+    public var myId: String {
+        get { deviceId }
+        set { deviceId = newValue }
+    }
+
+    public var myQrLink: String? {
+        get { pairingQrLink }
+        set { pairingQrLink = newValue }
+    }
+
+    public var pairingPrompt: PairingPrompt? {
+        get { pairingCode }
+        set { pairingCode = newValue }
+    }
+
+    public var watchOffer: WatchOfferPrompt? {
+        get { activeWatchOffer }
+        set { activeWatchOffer = newValue }
+    }
+
+    public var dataRetention: DataRetentionCounts? {
+        get { dataRetentionCounts }
+        set { dataRetentionCounts = newValue }
+    }
+
+    public mutating func fold(_ event: Event) {
+        apply(event)
+    }
 
     public init() {}
 

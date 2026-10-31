@@ -82,7 +82,7 @@ final class SystemMonitors {
         }
         let state = UIDevice.current.batteryState
         let charging = (state == .charging || state == .full)
-        return Battery(level: pct, charging: charging)
+        return Battery(level: pct, charging: charging, plugged: charging ? "ac" : nil)
     }
 
     func currentCapabilities() -> [String] {

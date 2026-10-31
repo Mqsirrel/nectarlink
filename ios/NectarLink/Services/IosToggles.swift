@@ -24,7 +24,8 @@ public final class IosToggles: NSObject, @unchecked Sendable {
         return device.hasTorch
     }
 
-    public func startObserving() {
+    public func startObserving(onTogglesChanged: (@Sendable (PhoneToggles) -> Void)? = nil) {
+        if let onTogglesChanged { self.onTogglesChanged = onTogglesChanged }
         DispatchQueue.main.async {
             let session = AVAudioSession.sharedInstance()
             try? session.setActive(true, options: [])
@@ -123,6 +124,14 @@ public final class IosToggles: NSObject, @unchecked Sendable {
         default:
             return false
         }
+    }
+
+    public func setPhoneToggle(id: String, value: PhoneToggleValue) -> Bool {
+        setToggle(id: id, value: value)
+    }
+
+    public func notifyChanged() {
+        emitCurrent()
     }
 
     private func emitCurrent() {

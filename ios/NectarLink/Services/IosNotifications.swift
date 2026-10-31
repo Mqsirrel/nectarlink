@@ -43,6 +43,28 @@ public final class IosNotifications: NSObject, UNUserNotificationCenterDelegate,
         }
     }
 
+    public func requestAuthorizationIfNeeded() {
+        Task {
+            _ = await requestPermissionIfNeeded()
+        }
+    }
+
+    public func dismissNotification(key: String) throws {}
+
+    public func runNotificationAction(key: String, action: String, reply: String?) throws {}
+
+    public func showLinkNotification(fromName: String, url: String) {
+        _ = handleOpenLink(fromId: fromName, urlString: url)
+    }
+
+    public func showWatchOfferNotification(fromName: String, title: String) {
+        postWatchOfferNotification(fromId: fromName, player: "", title: title)
+    }
+
+    public func taskNotify(fromId: String, task: TaskNotify) -> Bool {
+        postTaskNotification(fromId: fromId, task: task)
+    }
+
     public func handleOpenLink(fromId: String, urlString: String) -> Bool {
         guard let url = URL(string: urlString),
               let scheme = url.scheme?.lowercased(),

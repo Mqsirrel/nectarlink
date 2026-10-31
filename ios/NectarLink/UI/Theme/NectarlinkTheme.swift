@@ -156,7 +156,7 @@ final class ThemeManager: ObservableObject {
         }
     }
 
-    private static func toPalette(_ p: FfiRolePalette) -> Palette {
+    nonisolated private static func toPalette(_ p: FfiRolePalette) -> Palette {
         Palette(
             primary: Color(hex: p.primary),
             onPrimary: Color(hex: p.onPrimary),
@@ -176,7 +176,7 @@ final class ThemeManager: ObservableObject {
         )
     }
 
-    private static func downsampleToRgba(image: UIImage, maxSide: Int) -> (Data, UInt32, UInt32)? {
+    nonisolated private static func downsampleToRgba(image: UIImage, maxSide: Int) -> (Data, UInt32, UInt32)? {
         guard let cgImage = image.cgImage else { return nil }
         let w = min(maxSide, max(1, cgImage.width))
         let h = min(maxSide, max(1, cgImage.height))

@@ -23,6 +23,18 @@ public final class PcSpeakerPlayer: @unchecked Sendable {
         return activeDeviceId
     }
 
+    public func isListening(to peerId: String) -> Bool {
+        listeningDeviceId == peerId
+    }
+
+    public func setListening(peerId: String, enabled: Bool) {
+        setListeningDevice(enabled ? peerId : nil)
+    }
+
+    public func onPcmFrame(fromId: String, sampleRate: UInt32, channels: UInt8, pcm: Data) {
+        enqueueFrame(device: fromId, sampleRate: sampleRate, channels: channels, pcm: pcm)
+    }
+
     public func setListeningDevice(_ deviceId: String?) {
         lock.lock()
         activeDeviceId = deviceId
@@ -69,8 +81,12 @@ public final class PcSpeakerPlayer: @unchecked Sendable {
         playerNode.scheduleBuffer(buffer, completionHandler: nil)
     }
 
-    public func stop() {
+    public func stop(peerId: String? = nil) {
         lock.lock()
+        if let peerId, activeDeviceId != peerId {
+            lock.unlock()
+            return
+        }
         activeDeviceId = nil
         stopLocked()
         lock.unlock()

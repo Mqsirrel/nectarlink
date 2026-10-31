@@ -24,6 +24,18 @@ public final class IosClipboard: @unchecked Sendable {
         setRichText(text: text, html: nil, rtf: nil)
     }
 
+    public func setClipboard(text: String) -> Bool {
+        setText(text)
+    }
+
+    public func setClipboardRich(text: String, html: String?, rtf: String?) -> Bool {
+        setRichText(text: text, html: html, rtf: rtf)
+    }
+
+    public func setClipboardImage(mime: String, bytes: Data) -> Bool {
+        setImage(mime: mime, bytes: bytes)
+    }
+
     public func setRichText(text: String, html: String?, rtf: String?) -> Bool {
         guard !text.isEmpty else { return false }
         let applyBlock = {
@@ -101,6 +113,11 @@ public final class IosClipboard: @unchecked Sendable {
         }
 
         return nil
+    }
+
+    @MainActor
+    public func readCurrentClipboard() -> OutgoingClipboardPayload? {
+        readCurrentPayload()
     }
 
     private func recordCoreWrite(changeCount: Int) {

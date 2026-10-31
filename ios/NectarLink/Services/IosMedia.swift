@@ -12,6 +12,7 @@ public final class IosMedia {
     public static let shared = IosMedia()
 
     public var onRemoteCommand: ((_ deviceId: String, _ playerId: String, _ action: MediaAction, _ positionMs: UInt64?) -> Void)?
+    public var onPlayersChanged: (@Sendable ([MediaPlayer]) -> Void)?
 
     private var activeDeviceId: String?
     private var activePlayer: MediaPlayer?
@@ -113,6 +114,26 @@ public final class IosMedia {
             let ms = UInt64(max(0, posEvent.positionTime * 1000.0))
             self.onRemoteCommand?(dev, p.id, .seek, ms)
             return .success
+        }
+    }
+
+    public func startObserving(onPlayersChanged: (@Sendable ([MediaPlayer]) -> Void)? = nil) {
+        if let onPlayersChanged { self.onPlayersChanged = onPlayersChanged }
+    }
+
+    public func mediaCommand(player: String, action: MediaAction, position: UInt64?) throws {
+        let sys = MPMusicPlayerController.systemMusicPlayer
+        switch action {
+        case .play: sys.play()
+        case .pause, .stop: sys.pause()
+        case .next: sys.skipToNextItem()
+        case .previous: sys.skipToPreviousItem()
+        case .seek:
+            if let position {
+                sys.currentPlaybackTime = Double(position) / 1000.0
+            }
+        default:
+            break
         }
     }
 }

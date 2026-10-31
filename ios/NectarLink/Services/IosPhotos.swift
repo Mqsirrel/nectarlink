@@ -27,6 +27,20 @@ public final class IosPhotos: NSObject, PHPhotoLibraryChangeObserver, @unchecked
         return status == .authorized || status == .limited
     }
 
+    public static func requestPermission() async -> Bool {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        return status == .authorized || status == .limited
+    }
+
+    public func startObserving(
+        onPhotoTaken: (@Sendable (Photo) -> Void)? = nil,
+        onPhotosChanged: (@Sendable () -> Void)? = nil
+    ) {
+        if let onPhotoTaken { self.onPhotoTaken = onPhotoTaken }
+        if let onPhotosChanged { self.onPhotosChanged = onPhotosChanged }
+        startObservingIfAuthorized()
+    }
+
     public func startObservingIfAuthorized() {
         guard Self.isAuthorized else { return }
         lock.lock()

@@ -179,7 +179,11 @@ final class CoreStore: ObservableObject {
             }
             for dev in devices {
                 if let caps = try? node.capabilities(id: dev.id) {
-                    state.capabilities[dev.id] = caps
+                    var map: [String: FeatureStatus] = [:]
+                    for f in caps {
+                        map[f.id] = f.status
+                    }
+                    state.capabilities[dev.id] = map
                 }
                 if let toggles = try? node.deviceToggles(id: dev.id) {
                     var map: [String: Bool] = [:]
@@ -244,7 +248,11 @@ final class CoreStore: ObservableObject {
             }
             if let node {
                 if let caps = try? node.capabilities(id: device.id) {
-                    state.capabilities[device.id] = caps
+                    var map: [String: FeatureStatus] = [:]
+                    for f in caps {
+                        map[f.id] = f.status
+                    }
+                    state.capabilities[device.id] = map
                 }
                 if let toggles = try? node.deviceToggles(id: device.id) {
                     var map: [String: Bool] = [:]
@@ -294,7 +302,7 @@ final class CoreStore: ObservableObject {
                 state.localSendPeers = node.localsendPeers()
             }
 
-        case .pcAudioPcm(let id, let sampleRate, let channels, let pcm):
+        case .pcAudioFrame(let id, let sampleRate, let channels, let pcm):
             PcSpeakerPlayer.shared.onPcmFrame(
                 fromId: id,
                 sampleRate: sampleRate,
@@ -308,13 +316,7 @@ final class CoreStore: ObservableObject {
         case .pcMirrorFrame(let id, let keyframe, let timeUs, let data):
             PcMirrorSession.shared.onFrame(pcId: id, keyframe: keyframe, timeUs: timeUs, annexB: data)
 
-        case .pcMirrorAudioConfig(let id, let rate, let channels):
-            PcMirrorSession.shared.onAudioConfig(pcId: id, rate: rate, channels: channels)
-
-        case .pcMirrorAudioFrame(let id, let pcm):
-            PcMirrorSession.shared.onAudioFrame(pcId: id, pcm: pcm)
-
-        case .pcMirrorStopped(let id):
+        case .pcMirrorEnded(let id):
             PcMirrorSession.shared.onStopped(pcId: id)
 
         case .transfer(let transfer):
@@ -337,7 +339,7 @@ final class CoreStore: ObservableObject {
                 let uri = try await node.pairingStartQr()
                 self.state.myQrLink = uri
             } catch {
-                self.state.pairingError = error.localizedDescription
+                self.state.pairingError = .other(message: error.localizedDescription)
             }
         }
     }
@@ -351,7 +353,7 @@ final class CoreStore: ObservableObject {
                 try await node.pairingJoin(link: link)
             } catch {
                 self.state.pairingBusy = false
-                self.state.pairingError = error.localizedDescription
+                self.state.pairingError = .other(message: error.localizedDescription)
             }
         }
     }
@@ -365,7 +367,7 @@ final class CoreStore: ObservableObject {
                 try await node.pairingStartNearby(peer: peerId)
             } catch {
                 self.state.pairingBusy = false
-                self.state.pairingError = error.localizedDescription
+                self.state.pairingError = .other(message: error.localizedDescription)
             }
         }
     }
@@ -379,7 +381,7 @@ final class CoreStore: ObservableObject {
                 state.pairingBusy = false
             }
         } catch {
-            state.pairingError = error.localizedDescription
+            state.pairingError = .other(message: error.localizedDescription)
         }
     }
 
@@ -416,7 +418,11 @@ final class CoreStore: ObservableObject {
             current[name] = enabled
             state.deviceToggles[deviceId] = current
             if let caps = try? node.capabilities(id: deviceId) {
-                state.capabilities[deviceId] = caps
+                var map: [String: FeatureStatus] = [:]
+                for f in caps {
+                    map[f.id] = f.status
+                }
+                state.capabilities[deviceId] = map
             }
         } catch {
             showToast(error.localizedDescription)
@@ -554,12 +560,7 @@ final class CoreStore: ObservableObject {
                     let attrs = try fm.attributesOfItem(atPath: stagedUrl.path)
                     let size = (attrs[.size] as? NSNumber)?.uint64Value ?? 0
                     outgoing.append(
-                        FileToSend(
-                            path: stagedUrl.path,
-                            name: fileName,
-                            size: size,
-                            folder: nil
-                        )
+                        .path(name: fileName, path: stagedUrl.path, folder: nil)
                     )
                 } catch {}
             }
@@ -658,10 +659,9 @@ final class CoreStore: ObservableObject {
     func sendRecording(to peerId: String, fileUrl: URL, markers: [RecordingMarker]) {
         guard let node else { return }
         let size = (try? FileManager.default.attributesOfItem(atPath: fileUrl.path)[.size] as? NSNumber)?.uint64Value ?? 0
-        let file = FileToSend(
-            path: fileUrl.path,
+        let file = FileToSend.path(
             name: fileUrl.lastPathComponent,
-            size: size,
+            path: fileUrl.path,
             folder: nil
         )
         Task {
@@ -816,7 +816,7 @@ final class CoreStore: ObservableObject {
 
     func sendPcMirrorTouch(pcId: String, phase: TouchPhase, x: Float, y: Float, pointerId: UInt32 = 0) {
         guard let node else { return }
-        let ev = MirrorInputEvent.touch(phase: phase, x: x, y: y, id: pointerId)
+        let ev = MirrorInputEvent.touch(action: phase, x: x, y: y)
         Task {
             try? await node.sendPcMirrorInput(pcId: pcId, input: ev)
         }

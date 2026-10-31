@@ -65,4 +65,20 @@ public final class IosCalls: NSObject, CXCallObserverDelegate, @unchecked Sendab
         }
         return true
     }
+
+    public func startObserving(onCallChanged: (@Sendable (Call) -> Void)? = nil) {
+        if let onCallChanged { self.onCallChanged = onCallChanged }
+    }
+
+    public func callCommand(id: String, command: CallCommand) -> Bool {
+        false
+    }
+
+    public func callLog(before: Int64?, limit: UInt32) -> [CallLogEntry] {
+        []
+    }
+
+    public func callDial(number: String) -> Bool {
+        dial(number: number)
+    }
 }

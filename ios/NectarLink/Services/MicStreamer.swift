@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import AVFoundation
+import Combine
 import Foundation
 
 /// Captures 48 kHz mono 16-bit PCM from the iPhone microphone and streams it
 /// to a paired PC (`node.micOpen(pcId:)`).
-public final class MicStreamer: @unchecked Sendable {
+public final class MicStreamer: ObservableObject, @unchecked Sendable {
     public static let shared = MicStreamer()
 
+    @Published public private(set) var isStreaming: Bool = false
     public var onStateChanged: (@Sendable (_ pcId: String?) -> Void)?
 
     private let lock = NSLock()
+    private weak var nodeRef: NectarlinkNode?
     private var engine: AVAudioEngine?
     private var stream: MirrorStream?
     private var activePcId: String?
@@ -18,10 +21,34 @@ public final class MicStreamer: @unchecked Sendable {
 
     private init() {}
 
+    public func attach(node: NectarlinkNode) {
+        lock.lock()
+        nodeRef = node
+        lock.unlock()
+    }
+
+    public static func requestPermission() async -> Bool {
+        await AVAudioApplication.requestRecordPermission()
+    }
+
     public var currentPcId: String? {
         lock.lock()
         defer { lock.unlock() }
         return activePcId
+    }
+
+    public func start(pcId: String) -> Bool {
+        lock.lock()
+        guard let node = nodeRef else {
+            lock.unlock()
+            return false
+        }
+        lock.unlock()
+
+        Task {
+            _ = await self.start(pcId: pcId, node: node)
+        }
+        return true
     }
 
     public func start(pcId: String, node: NectarlinkNode) async -> Bool {
@@ -39,6 +66,9 @@ public final class MicStreamer: @unchecked Sendable {
 
             let started = startEngine(with: mirrorStream, pcId: pcId)
             if started {
+                await MainActor.run {
+                    self.isStreaming = true
+                }
                 onStateChanged?(pcId)
             } else {
                 mirrorStream.end()
@@ -47,6 +77,13 @@ public final class MicStreamer: @unchecked Sendable {
         } catch {
             return false
         }
+    }
+
+    public func stop(pcId: String? = nil) {
+        lock.lock()
+        let node = nodeRef
+        lock.unlock()
+        stop(node: node)
     }
 
     public func stop(node: NectarlinkNode?) {
@@ -62,6 +99,10 @@ public final class MicStreamer: @unchecked Sendable {
         currentEngine?.inputNode.removeTap(onBus: 0)
         currentEngine?.stop()
         currentStream?.end()
+
+        Task { @MainActor in
+            self.isStreaming = false
+        }
 
         if let pcId {
             onStateChanged?(nil)

@@ -22,6 +22,7 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
     public static let shared = VoiceRecorder()
 
     @Published public private(set) var isRecording: Bool = false
+    @Published public private(set) var isPaused: Bool = false
     @Published public private(set) var elapsedMs: UInt64 = 0
     @Published public private(set) var currentMarkers: [RecordingMarker] = []
     @Published public private(set) var waveformSamples: [Float] = Array(repeating: 0.08, count: 40)
@@ -76,6 +77,7 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
             self.currentMarkers = []
             self.waveformSamples = Array(repeating: 0.08, count: 40)
             self.isRecording = true
+            self.isPaused = false
 
             self.meterTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -85,6 +87,25 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
             return true
         } catch {
             return false
+        }
+    }
+
+    public func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        recorder?.pause()
+        meterTimer?.invalidate()
+        meterTimer = nil
+        isPaused = true
+    }
+
+    public func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        recorder?.record()
+        isPaused = false
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tickMeters()
+            }
         }
     }
 
@@ -107,6 +128,7 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
         rec.stop()
         self.recorder = nil
         self.isRecording = false
+        self.isPaused = false
         self.currentFileURL = nil
 
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -141,6 +163,7 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
         }
         currentFileURL = nil
         isRecording = false
+        isPaused = false
         elapsedMs = 0
         currentMarkers = []
     }
