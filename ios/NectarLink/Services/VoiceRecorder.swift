@@ -13,6 +13,8 @@ public struct SavedVoiceRecording: Identifiable, Equatable, Sendable {
     public let sizeBytes: UInt64
     public let markers: [RecordingMarker]
     public var sentToDevices: [String]
+
+    public var url: URL { fileURL }
 }
 
 /// Records 48 kHz AAC (`.m4a`) voice notes with timestamped markers, live
@@ -48,7 +50,12 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
         guard !isRecording else { return true }
         let granted = await AVAudioApplication.requestRecordPermission()
         guard granted else { return false }
+        return start()
+    }
 
+    @discardableResult
+    public func start() -> Bool {
+        guard !isRecording else { return true }
         stopPlayback()
 
         do {
@@ -92,6 +99,22 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
         } catch {
             return false
         }
+    }
+
+    public func pause() {
+        pauseRecording()
+    }
+
+    public func resume() {
+        resumeRecording()
+    }
+
+    public func discard() {
+        cancelRecording()
+    }
+
+    public func stop() -> SavedVoiceRecording? {
+        stopRecording()
     }
 
     public func pauseRecording() {
