@@ -9,10 +9,6 @@ use std::{
 };
 
 use libc::{AF_INET, AF_INET6, AF_LINK, AF_ROUTE, AF_UNSPEC, CTL_NET, c_int, uintptr_t};
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-use libc::{
-    NET_RT_DUMP, RTA_IFP, RTAX_BRD, RTAX_DST, RTAX_GATEWAY, RTAX_MAX, RTAX_NETMASK, RTF_GATEWAY,
-};
 use n0_error::{e, ensure, stack_error};
 use tracing::warn;
 
@@ -35,7 +31,7 @@ pub(crate) use self::openbsd::*;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod macos;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-use self::macos::*;
+pub(crate) use self::macos::*;
 
 pub async fn default_route() -> Option<DefaultRouteDetails> {
     let idx = default_route_interface_index()?;
@@ -118,7 +114,7 @@ fn is_default_gateway(rm: &RouteMessage) -> bool {
     }
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
-    if rm.flags & libc::RTF_IFSCOPE as u32 != 0 {
+    if rm.flags & RTF_IFSCOPE as u32 != 0 {
         return false;
     }
 
@@ -195,7 +191,7 @@ fn fetch_routing_table() -> Option<Vec<u8>> {
 
 #[cfg(any(target_os = "macos", target_os = "ios",))]
 fn parse_routing_table(rib: &[u8]) -> Option<Vec<RouteMessage>> {
-    match parse_rib(libc::NET_RT_IFLIST2, rib) {
+    match parse_rib(NET_RT_IFLIST2, rib) {
         Ok(res) => {
             let res = res
                 .into_iter()
