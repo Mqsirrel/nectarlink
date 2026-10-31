@@ -12,6 +12,14 @@ public final class IosContacts: @unchecked Sendable {
 
     private init() {}
 
+    public static func requestPermission() async -> Bool {
+        await withCheckedContinuation { cont in
+            CNContactStore().requestAccess(for: .contacts) { granted, _ in
+                cont.resume(returning: granted)
+            }
+        }
+    }
+
     public static var isAuthorized: Bool {
         let status = CNContactStore.authorizationStatus(for: .contacts)
         return status == .authorized

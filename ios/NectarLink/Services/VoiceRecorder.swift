@@ -23,6 +23,9 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
 
     @Published public private(set) var isRecording: Bool = false
     @Published public private(set) var isPaused: Bool = false
+
+    /// Latest normalised input level (0...1) for the live meter.
+    public var amplitude: Float { waveformSamples.last ?? 0 }
     @Published public private(set) var elapsedMs: UInt64 = 0
     @Published public private(set) var currentMarkers: [RecordingMarker] = []
     @Published public private(set) var waveformSamples: [Float] = Array(repeating: 0.08, count: 40)

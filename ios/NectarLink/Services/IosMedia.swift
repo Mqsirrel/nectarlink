@@ -121,19 +121,17 @@ public final class IosMedia {
         if let onPlayersChanged { self.onPlayersChanged = onPlayersChanged }
     }
 
-    public func mediaCommand(player: String, action: MediaAction, position: UInt64?) throws {
+    nonisolated public func mediaCommand(player: String, action: MediaAction, position: UInt64?) throws {
         let sys = MPMusicPlayerController.systemMusicPlayer
         switch action {
         case .play: sys.play()
-        case .pause, .stop: sys.pause()
+        case .pause: sys.pause()
         case .next: sys.skipToNextItem()
         case .previous: sys.skipToPreviousItem()
         case .seek:
             if let position {
                 sys.currentPlaybackTime = Double(position) / 1000.0
             }
-        default:
-            break
         }
     }
 }

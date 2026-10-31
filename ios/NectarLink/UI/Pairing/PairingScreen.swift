@@ -46,7 +46,7 @@ struct PairingScreen: View {
                     if let error = store.state.pairingError {
                         HStack(spacing: 10) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                            Text(error)
+                            Text(error.message)
                                 .font(.caption)
                             Spacer()
                             Button {
@@ -206,17 +206,17 @@ struct PairingScreen: View {
                     VStack(spacing: 10) {
                         ForEach(store.state.discovered, id: \.id) { peer in
                             HStack(spacing: 14) {
-                                Image(systemName: peer.info.kind == .laptop ? "laptopcomputer" : "desktopcomputer")
+                                Image(systemName: "desktopcomputer")
                                     .font(.title2)
                                     .foregroundStyle(palette.primary)
                                     .frame(width: 40, height: 40)
                                     .background(palette.primaryContainer.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(peer.info.name)
+                                    Text(peer.name ?? "NectarLink PC")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(palette.onSurface)
-                                    Text("\(peer.info.os.capitalized) • \(String(peer.id.prefix(8)))")
+                                    Text(String(peer.id.prefix(8)))
                                         .font(.caption)
                                         .foregroundStyle(palette.onSurfaceVariant)
                                 }

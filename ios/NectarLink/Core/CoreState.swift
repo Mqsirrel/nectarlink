@@ -82,7 +82,7 @@ public struct CoreState: Equatable, Sendable {
     public var pcAudioListeningDevice: String? = nil
     public var pcSpeakerPeers: Set<String> = []
     public var mediaArt: [String: Data] = [:]
-    public var recentPhotos: [Photo] = []
+    public var recentPhotos: [PhotoItem] = []
     public var recentPhotoThumbs: [String: Data] = [:]
     public var deviceToggles: [String: [String: Bool]] = [:]
     public var storagePromptPeerId: String? = nil

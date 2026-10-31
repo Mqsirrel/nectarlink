@@ -607,13 +607,14 @@ final class CoreStore: ObservableObject {
         let snap = IosClipboard.shared.readCurrentClipboard()
         Task {
             do {
-                if let imageBytes = snap.imageBytes, let mime = snap.imageMime {
-                    try await node.sendClipboardImage(id: peerId, mime: mime, bytes: imageBytes)
+                switch snap {
+                case .image(let mime, let data):
+                    try await node.sendClipboardImage(id: peerId, mime: mime, bytes: data)
                     showToast("Clipboard image sent to PC")
-                } else if let text = snap.text, !text.isEmpty {
-                    try await node.sendClipboardRich(id: peerId, text: text, html: snap.html, rtf: snap.rtf)
+                case .text(let text, let html, let rtf) where !text.isEmpty:
+                    try await node.sendClipboardRich(id: peerId, text: text, html: html, rtf: rtf)
                     showToast("Clipboard sent to PC")
-                } else {
+                default:
                     showToast("Clipboard is empty")
                 }
             } catch {

@@ -50,3 +50,19 @@ extension LocalSendPeer: Identifiable {
     public var host: String { ip }
     public var protocolHttps: Bool { self.protocol.lowercased() == "https" }
 }
+
+extension PhotoItem {
+    public var video: Bool { duration != nil }
+}
+
+extension PairingFailure {
+    public var message: String {
+        switch self {
+        case .rejected: return "The other device rejected pairing."
+        case .declined: return "Pairing was declined."
+        case .expired: return "The pairing code expired. Try again."
+        case .unreachable: return "Couldn't reach the other device."
+        case .other(let message): return message
+        }
+    }
+}
