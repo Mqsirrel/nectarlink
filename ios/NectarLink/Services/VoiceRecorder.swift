@@ -28,6 +28,7 @@ public final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDel
     public var amplitude: Float { waveformSamples.last ?? 0 }
     @Published public private(set) var elapsedMs: UInt64 = 0
     @Published public private(set) var currentMarkers: [RecordingMarker] = []
+    public var markers: [RecordingMarker] { currentMarkers }
     @Published public private(set) var waveformSamples: [Float] = Array(repeating: 0.08, count: 40)
     @Published public private(set) var recordings: [SavedVoiceRecording] = []
     @Published public private(set) var playingRecordingId: String? = nil
